@@ -1,6 +1,8 @@
+import os
 from dotenv import load_dotenv
 import chainlit as cl
 from agents.base_agent import Agent
+from agents.implementation_agent import ImplementationAgent
 import base64  # Add this import
 
 load_dotenv()
@@ -48,9 +50,16 @@ Milestones should be formatted like this:
  - [ ] 3. This is the third milestone
 """
 
+IMPLEMENTATION_PROMPT = """\
+You are a software developer, building the web page described in the plan below.
+
+Using vanilla HTML and CSS, you will create the files and add them to the artifact folder.
+You will use the tools available to update the artifact.
+"""
+
 # Create an instance of the Agent class
 planning_agent = Agent(name="Planning Agent", client=client, prompt=PLANNING_PROMPT)
-
+implementation_agent = ImplementationAgent(name="Implementation Agent", client=client, prompt=IMPLEMENTATION_PROMPT)
 
 gen_kwargs = {
     "model": "gpt-4o",
@@ -60,6 +69,9 @@ gen_kwargs = {
 SYSTEM_PROMPT = """\
 You are a helpful assistant.
 """
+
+def plan_file_exists():
+    return os.path.exists("artifacts/plan.md")
 
 @observe
 @cl.on_chat_start
@@ -111,7 +123,10 @@ async def on_message(message: cl.Message):
     else:
         message_history.append({"role": "user", "content": message.content})
     
-    response_message = await planning_agent.execute(message_history)
+    if (plan_file_exists()):
+        response_message = await planning_agent.execute(message_history)
+    else:
+        response_message = await implementation_agent.execute(message_history)
 
     message_history.append({"role": "assistant", "content": response_message})
     cl.user_session.set("message_history", message_history)
